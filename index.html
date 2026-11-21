@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kuantum Parçacık Yaşamı — 2D Görsel Şölen</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #05070d;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, monospace;
+      color: #e0e6ed;
+    }
+
+    #canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      content-visibility: auto;
+      contain-intrinsic-size: 100vw 100vh;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+    }
+
+    /* ── Vignette & Ambient Glow ── */
+    #vignette {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+      background: radial-gradient(circle at center, transparent 60%, rgba(2, 3, 7, 0.85) 100%);
+    }
+
+    /* ── HUD Header ── */
+    #hud-header {
+      position: absolute;
+      top: 18px;
+      left: 20px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(9, 13, 24, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      border-radius: 20px;
+      font-family: 'Consolas', monospace;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      color: #00e5ff;
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #00e5ff;
+      box-shadow: 0 0 10px #00e5ff;
+      animation: pulseAnim 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseAnim {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.75); }
+    }
+
+    /* ── Bottom Info Bar ── */
+    #bottom-bar {
+      position: absolute;
+      bottom: 18px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .hint-chip {
+      background: rgba(9, 13, 24, 0.75);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 11px;
+      color: #8fa0b5;
+      font-family: 'Consolas', monospace;
+      letter-spacing: 0.6px;
+    }
+
+    .hint-chip kbd {
+      background: rgba(255, 255, 255, 0.14);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #fff;
+    }
+
+    #stats {
+      font-family: 'Consolas', monospace;
+      font-size: 11px;
+      color: #00e5ff;
+      display: flex;
+      gap: 12px;
+      background: rgba(9, 13, 24, 0.75);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 6px 14px;
+    }
+
+    /* ── Glassmorphism Control Panel ── */
+    #panel {
+      position: absolute;
+      top: 18px;
+      right: 20px;
+      width: 320px;
+      max-height: calc(100vh - 36px);
+      overflow-y: auto;
+      z-index: 10;
+      background: rgba(7, 11, 20, 0.85);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 16px 18px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+
+    #panel.hidden {
+      opacity: 0;
+      transform: translateX(20px) scale(0.96);
+      pointer-events: none;
+    }
+
+    #panel::-webkit-scrollbar {
+      width: 4px;
+    }
+    #panel::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #ffffff;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 8px;
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #6d8096;
+      margin: 12px 0 5px 0;
+    }
+
+    select {
+      width: 100%;
+      background: rgba(14, 21, 35, 0.9);
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: 12px;
+      outline: none;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    select:hover, select:focus {
+      border-color: #00e5ff;
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 6px 0;
+      font-size: 12px;
+    }
+
+    .control-row label {
+      color: #9cb0c9;
+      font-size: 12px;
+    }
+
+    .val-display {
+      font-family: 'Consolas', monospace;
+      font-size: 11px;
+      color: #00e5ff;
+    }
+
+    input[type=range] {
+      width: 52%;
+      accent-color: #00e5ff;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* ── Species Interaction Matrix Grid ── */
+    #matrix-container {
+      margin-top: 8px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 8px;
+    }
+
+    .matrix-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 3px;
+    }
+
+    .matrix-cell {
+      aspect-ratio: 1;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    .matrix-cell:hover {
+      transform: scale(1.15);
+      z-index: 2;
+    }
+
+    /* ── Action Buttons ── */
+    .btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e0e6ed;
+      padding: 7px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      font-family: inherit;
+    }
+
+    .btn:hover {
+      background: rgba(0, 229, 255, 0.15);
+      border-color: #00e5ff;
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(0, 229, 255, 0.25);
+    }
+
+    .btn.primary {
+      background: linear-gradient(135deg, rgba(0, 229, 255, 0.25), rgba(255, 0, 128, 0.25));
+      border: 1px solid rgba(0, 229, 255, 0.45);
+    }
+    .btn.primary:hover {
+      background: linear-gradient(135deg, rgba(0, 229, 255, 0.45), rgba(255, 0, 128, 0.45));
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.4);
+    }
+
+    /* Floating Cursor Follower */
+    #cursor-halo {
+      position: absolute;
+      width: 48px;
+      height: 48px;
+      border: 1px dashed rgba(0, 229, 255, 0.4);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 5;
+      transform: translate(-50%, -50%);
+      display: none;
+      animation: spin 8s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: translate(-50%, -50%) rotate(0deg); }
+      to   { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="canvas-container">
+    <canvas id="life-canvas"></canvas>
+  </div>
+  <div id="vignette"></div>
+  <div id="cursor-halo"></div>
+
+  <!-- Header HUD -->
+  <div id="hud-header">
+    <div class="badge">
+      <div class="pulse-dot"></div>
+      <span>QUANTUM PARTICLE LIFE // 2D SIMULATION</span>
+    </div>
+  </div>
+
+  <!-- Bottom Stats & Shortcuts -->
+  <div id="bottom-bar">
+    <div class="hint-chip">
+      <kbd>Sol Tık</kbd> Çekim Girdabı &nbsp;|&nbsp;
+      <kbd>Shift+Tık</kbd> İtici Plazma &nbsp;|&nbsp;
+      <kbd>Space</kbd> Duraklat &nbsp;|&nbsp;
+      <kbd>M</kbd> Mutasyon &nbsp;|&nbsp;
+      <kbd>H</kbd> Panel &nbsp;|&nbsp;
+      <kbd>F</kbd> Tam Ekran
+    </div>
+    <div id="stats">
+      <span id="fps-meter">60 FPS</span>
+      <span>•</span>
+      <span id="particle-meter">2,400 Parçacık</span>
+    </div>
+  </div>
+
+  <!-- Control HUD Panel -->
+  <div id="panel">
+    <div class="panel-title">
+      <span>🧬 EKOSİSTEM KONTROL</span>
+      <span id="preset-badge" style="font-size: 10px; color:#00e5ff; font-weight: 400;">YILANLAR</span>
+    </div>
+
+    <div class="section-label">Önceden Tanımlı Evrenler (Presets)</div>
+    <select id="select-preset">
+      <option value="snakes" selected>🐍 Kozmik Yılanlar (Kovalayan Organizmalar)</option>
+      <option value="cells">🧬 Bölünen Hücreler (Zar & Mitosis)</option>
+      <option value="vortex">🌀 Galaktik Girdaplar (Swirling Vortex)</option>
+      <option value="crystal">💎 Kuantum Kristali (Düzenli Kafes)</option>
+      <option value="soup">🧪 İlkel Çorba (Dinamik Kaos & Evrim)</option>
+      <option value="symbiosis">🤝 Simbiyotik Kümeler (İkili Ortaklık)</option>
+    </select>
+
+    <div class="section-label">Fizik & Hareket Parametreleri</div>
+    <div class="control-row">
+      <label>Parçacık Sayısı</label>
+      <input type="range" id="param-count" min="600" max="4000" step="200" value="2400" />
+      <span class="val-display" id="val-count">2400</span>
+    </div>
+
+    <div class="control-row">
+      <label>Etki Alanı (Menzil)</label>
+      <input type="range" id="param-radius" min="30" max="120" step="5" value="70" />
+      <span class="val-display" id="val-radius">70px</span>
+    </div>
+
+    <div class="control-row">
+      <label>Sürtünme / Viskozite</label>
+      <input type="range" id="param-friction" min="0.01" max="0.30" step="0.01" value="0.08" />
+      <span class="val-display" id="val-friction">0.08</span>
+    </div>
+
+    <div class="control-row">
+      <label>Zaman Hızı</label>
+      <input type="range" id="param-speed" min="0.2" max="2.5" step="0.1" value="1.0" />
+      <span class="val-display" id="val-speed">1.0x</span>
+    </div>
+
+    <div class="control-row">
+      <label>Işık İzi (Glow Fading)</label>
+      <input type="range" id="param-trails" min="0.05" max="0.5" step="0.03" value="0.20" />
+      <span class="val-display" id="val-trails">Orta</span>
+    </div>
+
+    <div class="section-label">Türler Arası Çekim Matrisi (6x6)</div>
+    <div id="matrix-container">
+      <div class="matrix-grid" id="matrix-grid"></div>
+    </div>
+
+    <button class="btn primary" id="btn-mutate" style="width: 100%; margin-top: 10px;">
+      🎲 Rastgele Evren Yarat (Mutate [M])
+    </button>
+
+    <div class="btn-group">
+      <button class="btn" id="btn-pause">⏸ Duraklat [Space]</button>
+      <button class="btn" id="btn-respawn">🔄 Yeniden Dağıt</button>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn" id="btn-toggle-panel">Gizle [H]</button>
+      <button class="btn" id="btn-fullscreen">Tam Ekran [F]</button>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+
+    /* ══════════════════════════════════════════════════
+       SPECIES & COLOR PALETTE (6 Bioluminescent Species)
+    ══════════════════════════════════════════════════ */
+    const NUM_TYPES = 6;
+    const COLORS = [
+      { hex: '#ff3366', r: 255, g: 51,  b: 102, name: 'Kırmızı' }, // 0: Ruby Red
+      { hex: '#00ff88', r: 0,   g: 255, b: 136, name: 'Yeşil'   }, // 1: Emerald
+      { hex: '#00e5ff', r: 0,   g: 229, b: 255, name: 'Mavi'    }, // 2: Cyan
+      { hex: '#ffcc00', r: 255, g: 204, b: 0,   name: 'Sarı'    }, // 3: Gold
+      { hex: '#cc33ff', r: 204, g: 51,  b: 255, name: 'Mor'     }, // 4: Violet
+      { hex: '#ffffff', r: 255, g: 255, b: 255, name: 'Beyaz'   }  // 5: White
+    ];
+
+    /* ══════════════════════════════════════════════════
+       CURATED PRESETS (Interaction Matrices)
+       Values range from -1.0 (strong repulsion) to +1.0 (strong attraction)
+    ══════════════════════════════════════════════════ */
+    const PRESETS = {
+      snakes: {
+        name: 'KOZMİK YILANLAR',
+        matrix: [
+          [ 0.3,  0.7, -0.6, -0.2,  0.4, -0.8 ],
+          [-0.7,  0.4,  0.8, -0.5, -0.3,  0.3 ],
+          [ 0.5, -0.8,  0.3,  0.7, -0.4, -0.2 ],
+          [-0.3,  0.6, -0.7,  0.4,  0.8, -0.5 ],
+          [ 0.7, -0.4,  0.5, -0.8,  0.3,  0.6 ],
+          [-0.6,  0.3, -0.3,  0.6, -0.7,  0.4 ]
+        ],
+        friction: 0.08,
+        radius: 70
+      },
+      cells: {
+        name: 'BÖLÜNEN HÜCRELER',
+        matrix: [
+          [ 0.8, -0.5,  0.3, -0.9,  0.0, -0.4 ],
+          [-0.5,  0.9, -0.7,  0.4, -0.3,  0.1 ],
+          [ 0.4, -0.8,  0.8, -0.6,  0.2, -0.5 ],
+          [-0.9,  0.5, -0.5,  0.9, -0.4,  0.3 ],
+          [ 0.1, -0.4,  0.3, -0.4,  0.8, -0.7 ],
+          [-0.3,  0.2, -0.6,  0.4, -0.8,  0.9 ]
+        ],
+        friction: 0.10,
+        radius: 65
+      },
+      vortex: {
+        name: 'GALAKTİK GİRDAP',
+        matrix: [
+          [ 0.5,  0.8, -0.4,  0.2, -0.6,  0.7 ],
+          [-0.4,  0.6,  0.7, -0.5,  0.3, -0.3 ],
+          [ 0.6, -0.3,  0.5,  0.8, -0.4,  0.2 ],
+          [-0.5,  0.7, -0.2,  0.6,  0.7, -0.4 ],
+          [ 0.3, -0.4,  0.6, -0.3,  0.5,  0.8 ],
+          [-0.7,  0.2, -0.5,  0.6, -0.3,  0.6 ]
+        ],
+        friction: 0.05,
+        radius: 85
+      },
+      crystal: {
+        name: 'KUANTUM KRİSTALİ',
+        matrix: [
+          [ 0.9, -0.8, -0.8,  0.1, -0.2, -0.5 ],
+          [-0.8,  0.9, -0.8, -0.3,  0.1, -0.2 ],
+          [-0.8, -0.8,  0.9, -0.2, -0.3,  0.1 ],
+          [ 0.1, -0.3, -0.2,  0.9, -0.8, -0.8 ],
+          [-0.2,  0.1, -0.3, -0.8,  0.9, -0.8 ],
+          [-0.5, -0.2,  0.1, -0.8, -0.8,  0.9 ]
+        ],
+        friction: 0.14,
+        radius: 60
+      },
+      soup: {
+        name: 'İLKEL ÇORBA',
+        matrix: [
+          [-0.3,  0.9, -0.6,  0.4, -0.8,  0.5 ],
+          [ 0.6, -0.4,  0.8, -0.7,  0.3, -0.5 ],
+          [-0.7,  0.5, -0.3,  0.9, -0.6,  0.4 ],
+          [ 0.4, -0.8,  0.6, -0.4,  0.8, -0.7 ],
+          [-0.5,  0.3, -0.7,  0.5, -0.3,  0.9 ],
+          [ 0.8, -0.6,  0.4, -0.8,  0.6, -0.4 ]
+        ],
+        friction: 0.07,
+        radius: 75
+      },
+      symbiosis: {
+        name: 'SİMBİYOTİK KÜMELER',
+        matrix: [
+          [ 0.6,  0.9, -0.9, -0.9,  0.1, -0.1 ],
+          [ 0.9,  0.6, -0.9, -0.9, -0.1,  0.1 ],
+          [-0.9, -0.9,  0.6,  0.9, -0.9, -0.9 ],
+          [-0.9, -0.9,  0.9,  0.6, -0.9, -0.9 ],
+          [ 0.1, -0.1, -0.9, -0.9,  0.7,  0.9 ],
+          [-0.1,  0.1, -0.9, -0.9,  0.9,  0.7 ]
+        ],
+        friction: 0.09,
+        radius: 68
+      }
+    };
+
+    /* ══════════════════════════════════════════════════
+       STATE VARIABLES
+    ══════════════════════════════════════════════════ */
+    let matrix = JSON.parse(JSON.stringify(PRESETS.snakes.matrix));
+    let numParticles = 2400;
+    let maxRadius    = 70;
+    let minRadius    = 16;
+    let friction     = 0.08;
+    let speedMult    = 1.0;
+    let trailAlpha   = 0.20;
+    let isPaused     = false;
+    let isTabVisible = true;
+
+    // Canvas & context
+    const canvas = document.getElementById('life-canvas');
+    const ctx    = canvas.getContext('2d');
+    let width = 0, height = 0;
+
+    // Particles Data Structure (Flat typed arrays for ultra high performance)
+    let pX, pY, pVx, pVy, pType;
+
+    // Mouse Interaction
+    let mouseX = -1000, mouseY = -1000;
+    let isMouseDown = false;
+    let isShiftDown = false;
+    const haloEl = document.getElementById('cursor-halo');
+
+    /* ══════════════════════════════════════════════════
+       SPATIAL PARTITIONING GRID (Binning)
+       Enables 60 FPS with 3000+ particles
+    ══════════════════════════════════════════════════ */
+    let gridCols = 0, gridRows = 0;
+    let grid = [];
+
+    function initGrid() {
+      const cellSize = Math.max(30, maxRadius);
+      gridCols = Math.ceil(width / cellSize);
+      gridRows = Math.ceil(height / cellSize);
+      grid = new Array(gridCols * gridRows);
+      for (let i = 0; i < grid.length; i++) grid[i] = [];
+    }
+
+    /* ══════════════════════════════════════════════════
+       PARTICLE INITIALIZATION
+    ══════════════════════════════════════════════════ */
+    function initParticles() {
+      pX    = new Float32Array(numParticles);
+      pY    = new Float32Array(numParticles);
+      pVx   = new Float32Array(numParticles);
+      pVy   = new Float32Array(numParticles);
+      pType = new Uint8Array(numParticles);
+
+      for (let i = 0; i < numParticles; i++) {
+        pX[i] = Math.random() * width;
+        pY[i] = Math.random() * height;
+        pVx[i] = (Math.random() - 0.5) * 2;
+        pVy[i] = (Math.random() - 0.5) * 2;
+        pType[i] = i % NUM_TYPES;
+      }
+      document.getElementById('particle-meter').textContent = numParticles.toLocaleString() + ' Parçacık';
+    }
+
+    /* ══════════════════════════════════════════════════
+       INTERACTION MATRIX UI
+    ══════════════════════════════════════════════════ */
+    function renderMatrixUI() {
+      const gridEl = document.getElementById('matrix-grid');
+      gridEl.innerHTML = '';
+
+      for (let i = 0; i < NUM_TYPES; i++) {
+        for (let j = 0; j < NUM_TYPES; j++) {
+          const val = matrix[i][j];
+          const cell = document.createElement('div');
+          cell.className = 'matrix-cell';
+          cell.title = `${COLORS[i].name} → ${COLORS[j].name}: ${val.toFixed(2)}`;
+
+          if (val >= 0) {
+            cell.style.backgroundColor = `rgba(0, 255, 136, ${0.15 + val * 0.8})`;
+          } else {
+            cell.style.backgroundColor = `rgba(255, 51, 102, ${0.15 + Math.abs(val) * 0.8})`;
+          }
+          cell.style.border = `1px solid ${COLORS[i].hex}33`;
+
+          cell.addEventListener('click', () => {
+            matrix[i][j] = Math.round(((matrix[i][j] + 0.4) % 2.0 - 1.0) * 10) / 10;
+            renderMatrixUI();
+          });
+
+          gridEl.appendChild(cell);
+        }
+      }
+    }
+
+    function applyPreset(key) {
+      const pr = PRESETS[key] || PRESETS.snakes;
+      matrix   = JSON.parse(JSON.stringify(pr.matrix));
+      friction = pr.friction;
+      maxRadius = pr.radius;
+
+      document.getElementById('param-friction').value = friction;
+      document.getElementById('val-friction').textContent = friction.toFixed(2);
+      document.getElementById('param-radius').value = maxRadius;
+      document.getElementById('val-radius').textContent = maxRadius + 'px';
+      document.getElementById('preset-badge').textContent = pr.name;
+
+      initGrid();
+      renderMatrixUI();
+    }
+
+    function mutateMatrix() {
+      for (let i = 0; i < NUM_TYPES; i++) {
+        for (let j = 0; j < NUM_TYPES; j++) {
+          matrix[i][j] = Math.round((Math.random() * 2 - 1) * 100) / 100;
+        }
+      }
+      document.getElementById('preset-badge').textContent = 'ÖZEL MUTASYON';
+      renderMatrixUI();
+    }
+
+    /* ══════════════════════════════════════════════════
+       PHYSICS & SIMULATION STEP
+    ══════════════════════════════════════════════════ */
+    function updatePhysics() {
+      const cellSize = Math.max(30, maxRadius);
+      const cols = gridCols;
+      const rows = gridRows;
+
+      for (let i = 0; i < grid.length; i++) grid[i].length = 0;
+
+      for (let i = 0; i < numParticles; i++) {
+        const cx = Math.floor(pX[i] / cellSize);
+        const cy = Math.floor(pY[i] / cellSize);
+        const clampedCx = Math.max(0, Math.min(cols - 1, cx));
+        const clampedCy = Math.max(0, Math.min(rows - 1, cy));
+        grid[clampedCy * cols + clampedCx].push(i);
+      }
+
+      const forceFactor = 0.55 * speedMult;
+      const rMin = minRadius;
+      const rMax = maxRadius;
+      const halfW = width * 0.5;
+      const halfH = height * 0.5;
+
+      for (let i = 0; i < numParticles; i++) {
+        const xi = pX[i];
+        const yi = pY[i];
+        const typeI = pType[i];
+        const rowMatrix = matrix[typeI];
+
+        let totalFx = 0;
+        let totalFy = 0;
+
+        const cellX = Math.floor(xi / cellSize);
+        const cellY = Math.floor(yi / cellSize);
+
+        for (let dy = -1; dy <= 1; dy++) {
+          const ny = (cellY + dy + rows) % rows;
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = (cellX + dx + cols) % cols;
+            const neighborList = grid[ny * cols + nx];
+            const len = neighborList.length;
+
+            for (let k = 0; k < len; k++) {
+              const j = neighborList[k];
+              if (i === j) continue;
+
+              let dX = pX[j] - xi;
+              let dY = pY[j] - yi;
+
+              if (dX > halfW)  dX -= width;
+              else if (dX < -halfW) dX += width;
+              if (dY > halfH)  dY -= height;
+              else if (dY < -halfH) dY += height;
+
+              const distSq = dX * dX + dY * dY;
+              if (distSq > rMax * rMax || distSq < 0.0001) continue;
+
+              const dist = Math.sqrt(distSq);
+              let force = 0;
+
+              if (dist < rMin) {
+                force = -1.2 * (1.0 - dist / rMin);
+              } else {
+                const attract = rowMatrix[pType[j]];
+                const u = (dist - rMin) / (rMax - rMin);
+                force = attract * (1.0 - Math.abs(2.0 * u - 1.0));
+              }
+
+              const invDist = 1.0 / dist;
+              totalFx += dX * invDist * force;
+              totalFy += dY * invDist * force;
+            }
+          }
+        }
+
+        if (isMouseDown && mouseX > 0 && mouseY > 0) {
+          let mDx = mouseX - xi;
+          let mDy = mouseY - yi;
+          if (mDx > halfW)  mDx -= width;
+          else if (mDx < -halfW) mDx += width;
+          if (mDy > halfH)  mDy -= height;
+          else if (mDy < -halfH) mDy += height;
+
+          const mDistSq = mDx * mDx + mDy * mDy;
+          if (mDistSq < 350 * 350 && mDistSq > 1) {
+            const mDist = Math.sqrt(mDistSq);
+            if (isShiftDown) {
+              const blast = (1.0 - mDist / 350) * 12;
+              totalFx -= (mDx / mDist) * blast;
+              totalFy -= (mDy / mDist) * blast;
+            } else {
+              const pull = (1.0 - mDist / 350) * 4.5;
+              totalFx += (mDx / mDist) * pull - (mDy / mDist) * pull * 0.8;
+              totalFy += (mDy / mDist) * pull + (mDx / mDist) * pull * 0.8;
+            }
+          }
+        }
+
+        pVx[i] = (pVx[i] + totalFx * forceFactor) * (1.0 - friction);
+        pVy[i] = (pVy[i] + totalFy * forceFactor) * (1.0 - friction);
+
+        let newX = xi + pVx[i] * speedMult;
+        let newY = yi + pVy[i] * speedMult;
+
+        if (newX < 0) newX += width;
+        else if (newX >= width) newX -= width;
+        if (newY < 0) newY += height;
+        else if (newY >= height) newY -= height;
+
+        pX[i] = newX;
+        pY[i] = newY;
+      }
+    }
+
+    /* ══════════════════════════════════════════════════
+       RENDER LOOP
+    ══════════════════════════════════════════════════ */
+    let frameCount = 0;
+    let fpsTimer   = performance.now();
+    const fpsMeter = document.getElementById('fps-meter');
+
+    function render() {
+      ctx.fillStyle = `rgba(5, 7, 13, ${trailAlpha})`;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.globalCompositeOperation = 'lighter';
+
+      const pRadius = 2.2;
+      for (let i = 0; i < numParticles; i++) {
+        const col = COLORS[pType[i]];
+        ctx.fillStyle = col.hex;
+
+        ctx.beginPath();
+        ctx.arc(pX[i], pY[i], pRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function loop() {
+      if (!isTabVisible) return;
+      requestAnimationFrame(loop);
+
+      frameCount++;
+      const now = performance.now();
+      if (now - fpsTimer >= 1000) {
+        fpsMeter.textContent = Math.round((frameCount * 1000) / (now - fpsTimer)) + ' FPS';
+        frameCount = 0;
+        fpsTimer = now;
+      }
+
+      if (!isPaused) {
+        updatePhysics();
+      }
+      render();
+    }
+
+    /* ══════════════════════════════════════════════════
+       WINDOW RESIZING & BACKGROUND SUSPENSION
+    ══════════════════════════════════════════════════ */
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width  = width;
+      canvas.height = height;
+      initGrid();
+    }
+    window.addEventListener('resize', resize);
+
+    document.addEventListener('visibilitychange', () => {
+      isTabVisible = (document.visibilityState === 'visible');
+      if (isTabVisible) {
+        requestAnimationFrame(loop);
+      }
+    });
+
+    /* ══════════════════════════════════════════════════
+       USER INTERACTIONS & CONTROLS
+    ══════════════════════════════════════════════════ */
+    window.addEventListener('pointerdown', e => {
+      if (e.target.closest('#panel') || e.target.closest('#hud-header')) return;
+      isMouseDown = true;
+      isShiftDown = e.shiftKey;
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      haloEl.style.display = 'block';
+      haloEl.style.left = mouseX + 'px';
+      haloEl.style.top  = mouseY + 'px';
+    });
+
+    window.addEventListener('pointermove', e => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      if (isMouseDown) {
+        haloEl.style.left = mouseX + 'px';
+        haloEl.style.top  = mouseY + 'px';
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      isMouseDown = false;
+      haloEl.style.display = 'none';
+    });
+
+    document.getElementById('select-preset').addEventListener('change', e => {
+      applyPreset(e.target.value);
+    });
+
+    document.getElementById('param-count').addEventListener('input', e => {
+      numParticles = parseInt(e.target.value);
+      document.getElementById('val-count').textContent = numParticles;
+      initParticles();
+    });
+
+    document.getElementById('param-radius').addEventListener('input', e => {
+      maxRadius = parseInt(e.target.value);
+      document.getElementById('val-radius').textContent = maxRadius + 'px';
+      initGrid();
+    });
+
+    document.getElementById('param-friction').addEventListener('input', e => {
+      friction = parseFloat(e.target.value);
+      document.getElementById('val-friction').textContent = friction.toFixed(2);
+    });
+
+    document.getElementById('param-speed').addEventListener('input', e => {
+      speedMult = parseFloat(e.target.value);
+      document.getElementById('val-speed').textContent = speedMult.toFixed(1) + 'x';
+    });
+
+    document.getElementById('param-trails').addEventListener('input', e => {
+      trailAlpha = parseFloat(e.target.value);
+      document.getElementById('val-trails').textContent = trailAlpha < 0.1 ? 'Uzun İz' : (trailAlpha > 0.35 ? 'Kısa İz' : 'Orta');
+    });
+
+    document.getElementById('btn-mutate').addEventListener('click', mutateMatrix);
+    document.getElementById('btn-respawn').addEventListener('click', initParticles);
+
+    const pauseBtn = document.getElementById('btn-pause');
+    function togglePause() {
+      isPaused = !isPaused;
+      pauseBtn.textContent = isPaused ? '▶ Başlat [Space]' : '⏸ Duraklat [Space]';
+    }
+    pauseBtn.addEventListener('click', togglePause);
+
+    const panel = document.getElementById('panel');
+    const togglePanel = () => panel.classList.toggle('hidden');
+    document.getElementById('btn-toggle-panel').addEventListener('click', togglePanel);
+
+    const toggleFS = () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    };
+    document.getElementById('btn-fullscreen').addEventListener('click', toggleFS);
+
+    window.addEventListener('keydown', e => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePause();
+      }
+      if (e.key === 'm' || e.key === 'M') mutateMatrix();
+      if (e.key === 'h' || e.key === 'H') togglePanel();
+      if (e.key === 'f' || e.key === 'F') toggleFS();
+    });
+
+    /* ══════════════════════════════════════════════════
+       BOOT
+    ══════════════════════════════════════════════════ */
+    resize();
+    initParticles();
+    applyPreset('snakes');
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
